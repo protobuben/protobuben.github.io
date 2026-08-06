@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oleksandr Rubtsov | Roblox Backend &amp; Fullstack Engineer</title>
+<meta name="description" content="Roblox backend and fullstack engineer. Real-world physics replication, machine learning for game AI, procedural geometry, and shipped game architecture in strict-typed Luau.">
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#9671;</text></svg>">
+</head>
+<body>
+
+<canvas id="solid" aria-hidden="true"></canvas>
+
+<header class="hero">
+  <div class="wrap">
+    <p class="eyebrow">protobuben</p>
+    <h1>Oleksandr Rubtsov</h1>
+    <p class="tagline">
+      Backend and fullstack engineer on Roblox. 4+ years on the platform building
+      the parts other people route around: real-world physics replication, neural nets
+      that learn to aim, and procedural geometry that ships infinite content with zero art.
+    </p>
+    <p class="sub">Applied Mathematics, Kyiv Polytechnic Institute</p>
+    <nav class="links">
+      <a class="btn primary" href="https://www.linkedin.com/in/oleksandr-rubtsov-a9778338a/" target="_blank" rel="noopener">LinkedIn</a>
+      <a class="btn" href="#work">Selected work</a>
+      <a class="btn" href="#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+<!-- ------------------------------------------------------- -->
+<!-- Hard problems -->
+
+<section id="work" class="wrap section">
+  <h2>Hard problems, solved end to end</h2>
+  <p class="lede">
+    Most Roblox work is assembly. These are the ones that were not.
+  </p>
+
+  <div class="grid">
+
+    <article class="card">
+      <h3>1:1 billiards physics</h3>
+      <p>
+        Full real-world billiards replication: cue impact, spin transfer, cushion
+        response, ball-to-ball collision resolution. Hand-derived from the physics
+        rather than tuned by feel, and implemented in parallel Luau back when the
+        parallel scheduler had close to no documentation and no AI to ask.
+      </p>
+      <p class="meta">Parallel Luau | rigid body dynamics | commercial, client-owned</p>
+    </article>
+
+    <article class="card">
+      <h3>Machine learning for game AI</h3>
+      <p>
+        Neural-network bots trained with Natural Evolution Strategies to fill low-population
+        servers in a 20-player third-person shooter. Built the whole stack: the tensor and
+        network layer, the trainer, a Studio plugin for running and saving training sessions,
+        and a split-brain bot architecture where aim and movement are separate networks
+        trained in sequence, aim frozen while movement learns on top.
+      </p>
+      <p class="meta">NES optimization | custom tensor library | Studio plugin tooling</p>
+    </article>
+
+    <article class="card">
+      <h3>Procedural geometry as content</h3>
+      <p>
+        A Conway polyhedron engine: the five Platonic solids as seeds, plus truncate,
+        stellate, and dual as composable operators, so a recipe string like
+        <code>tkD</code> deterministically becomes a mesh. Collectibles are generated,
+        not modeled, which means the content ceiling is combinatorial instead of
+        being capped by how many assets somebody can afford to commission.
+      </p>
+      <p class="meta">Computational geometry | Newell normals | zero external meshes</p>
+    </article>
+
+    <article class="card">
+      <h3>Gravity-agnostic maze generation</h3>
+      <p>
+        A 3D pipe maze carved by depth-first search over a node graph, then realized in
+        world space by a placer that solves each junction's rotation so tunnels actually
+        meet. There is no global up: the player walks the inside of the structure in any
+        orientation, so the generator cannot lean on a floor plane anywhere.
+      </p>
+      <p class="meta">Graph search | rotation solving | procedural level design</p>
+    </article>
+
+    <article class="card">
+      <h3>Custom pathfinding with movement prediction</h3>
+      <p>
+        Navigation that leads a moving target instead of chasing where it used to be,
+        built when the stock pathfinding service could not express the behaviour.
+      </p>
+      <p class="meta">Trajectory prediction | navigation</p>
+    </article>
+
+    <article class="card">
+      <h3>Buffer-packed networking</h3>
+      <p>
+        A typed networking layer with generic send and listen signatures and real
+        connection handles, sitting over a buffer-packing transport so hot channels
+        move bytes instead of tables. Call sites never see the packing layer, which
+        keeps the bandwidth win from leaking into every feature that uses it.
+      </p>
+      <p class="meta">Strict-typed Luau | binary serialization | API design</p>
+    </article>
+
+  </div>
+</section>
+
+<!-- ------------------------------------------------------- -->
+<!-- Shipped -->
+
+<section class="wrap section">
+  <h2>Shipped and playable</h2>
+  <p class="lede">
+    Published experiences you can open right now, not screenshots.
+  </p>
+
+  <div class="grid two">
+
+    <article class="card game">
+      <h3>RCL Showdown</h3>
+      <p>
+        A published round-based clan third-person shooter. Full stack architected in
+        Knit: session-locked persistence, gun service with server-side hit validation,
+        round and gamemode flow (KOTH, capture the flag), ragdoll, spectation, analytics.
+      </p>
+      <a class="btn small" href="https://www.roblox.com/share?code=c98027411b35f647abaa9cab2d5b741f&amp;type=ExperienceDetails&amp;stamp=1779704839930" target="_blank" rel="noopener">Play</a>
+    </article>
+
+    <article class="card game">
+      <h3>Astral Cast</h3>
+      <p>
+        A fishing and collection game where catches are procedurally generated
+        constellations. Complete save, inventory, and collection stack; a reveal
+        cutscene that forges each shape operator by operator; object pooling behind
+        the render path so the reveal does not cost a frame spike.
+      </p>
+      <a class="btn small" href="https://www.roblox.com/games/128802165504362/Multiverse-Fishing" target="_blank" rel="noopener">Play</a>
+    </article>
+
+    <article class="card game">
+      <h3>Shapez</h3>
+      <p>
+        An RNG progression game built on the buy, save, and equip architecture, with
+        procedurally generated polyhedra orbiting the player and a stat system where
+        stackable modifiers mutate both numbers and geometry.
+      </p>
+      <a class="btn small" href="https://www.roblox.com/games/91423664172067/Shapez" target="_blank" rel="noopener">Play</a>
+    </article>
+
+  </div>
+</section>
+
+<!-- ------------------------------------------------------- -->
+<!-- How I build -->
+
+<section class="wrap section">
+  <h2>How I build</h2>
+
+  <div class="grid three">
+    <div class="tenet">
+      <h4>Server-authoritative by default</h4>
+      <p>The client asks, the server decides. Validation is part of the design, not a pass added after an exploit shows up.</p>
+    </div>
+    <div class="tenet">
+      <h4>Strict-typed Luau</h4>
+      <p>Every module fully typed. Type errors are cheaper than bug reports, and a typed boundary is documentation that cannot drift.</p>
+    </div>
+    <div class="tenet">
+      <h4>Registry-driven content</h4>
+      <p>Adding an item, a rarity tier, or a weapon is one table entry. The thing a client will ask for a hundred times should cost nothing each time.</p>
+    </div>
+    <div class="tenet">
+      <h4>Flat over nested</h4>
+      <p>Guard clauses and early returns instead of pyramids. Code that stays readable is code somebody can still extend in six months.</p>
+    </div>
+    <div class="tenet">
+      <h4>Bounded scope, milestone pay</h4>
+      <p>Written scope, split payment, working checkpoints you can see along the way instead of a black box that opens at the end.</p>
+    </div>
+    <div class="tenet">
+      <h4>Reuse before reinvent</h4>
+      <p>A maintained library of battle-tested modules across projects, so the common half of a job is assembly and the budget goes to the half that is actually new.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ------------------------------------------------------- -->
+<!-- Contact -->
+
+<section id="contact" class="wrap section contact">
+  <h2>Work with me</h2>
+  <p class="lede">
+    Available for backend and fullstack Roblox contracts. Happy to talk through scope
+    before either of us commits to anything.
+  </p>
+  <nav class="links">
+    <a class="btn primary" href="https://www.linkedin.com/in/oleksandr-rubtsov-a9778338a/" target="_blank" rel="noopener">LinkedIn</a>
+    <a class="btn" href="mailto:exyrux@gmail.com">exyrux@gmail.com</a>
+  </nav>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Oleksandr Rubtsov | protobuben</p>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
