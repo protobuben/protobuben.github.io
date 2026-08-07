@@ -190,7 +190,7 @@
   }
 
   // Apex over each face; every original vertex is carried through, so the
-  // morph is just the apexes rising out of their own face plane.
+  // apexes are the only new geometry and can be animated on their own.
   function kis(poly, height) {
     var verts = poly.verts.slice();
     var birth = poly.verts.map(function (p) { return p.slice(); });
@@ -211,6 +211,7 @@
     var out = finish({ verts: verts, faces: faces });
     out.birth = birth;
     out.fresh = fresh;
+    out.morphKind = "kis";
     out.color = poly.color;
     return out;
   }
@@ -257,10 +258,7 @@
 
     var out = finish({ verts: verts, faces: faces });
     out.birth = birth;
-    // Truncation replaces every vertex, and several new ones share a birth
-    // point, so releasing their stars early would stack sprites into a hot
-    // spot. They are all held back for the same reason the kis apexes are.
-    out.fresh = verts.map(function () { return true; });
+    out.morphKind = "truncate";
     out.color = poly.color;
     return out;
   }
@@ -282,7 +280,11 @@
   var MAX_VERTS = 400;   // preferred complexity ceiling
   var HOLD = 5200;       // ms held on a finished shape
   var MORPH = 2300;      // ms of transition
-  var STAR_GATE = 0.72;  // fraction of a morph before new stars appear
+  // Stellation runs in three phases across its morph: edges draw outward
+  // from the existing points to the face centre, then the new star emerges
+  // there, and only then does the spike rise.
+  var KIS_DRAW = 0.45;   // edges have reached the face centre by here
+  var KIS_STAR = 0.62;   // new star has fully emerged by here
 
   var seedIndex = 3;
   var current = SEEDS[seedIndex].make();
@@ -376,7 +378,7 @@
     return off;
   }
 
-  function drawSolid(verts, edges, color, ax, ay, alphaMul, scaleMul, fresh, gate) {
+  function drawSolid(verts, edges, color, ax, ay, alphaMul, scaleMul, fresh, gate, grow) {
     var maxR = 0;
     for (var i = 0; i < verts.length; i++) {
       var v = verts[i];
@@ -407,16 +409,33 @@
 
     ctx.lineCap = "round";
     for (var e = 0; e < edges.length; e++) {
-      var a = pts[edges[e][0]], b = pts[edges[e][1]];
+      var i0 = edges[e][0], i1 = edges[e][1];
+      var a = pts[i0], b = pts[i1];
       if (!a || !b) continue;
       var depth = (a.depth + b.depth) * 0.5;
       var alpha = Math.max(0, (depth - 0.72) * 1.5) * alphaMul;
       if (alpha <= 0.004) continue;
+
+      var sx = a.x, sy = a.y, ex = b.x, ey = b.y;
+
+      // An edge with exactly one fresh endpoint is new geometry, so it is
+      // drawn outward from the existing point it grew from.
+      if (grow < 1 && fresh) {
+        var f0 = fresh[i0], f1 = fresh[i1];
+        if (f0 !== f1) {
+          if (grow <= 0.001) continue;
+          var base = f0 ? b : a, tip = f0 ? a : b;
+          sx = base.x; sy = base.y;
+          ex = base.x + (tip.x - base.x) * grow;
+          ey = base.y + (tip.y - base.y) * grow;
+        }
+      }
+
       ctx.strokeStyle = "rgba(" + rgb + ", " + (alpha * 0.5).toFixed(3) + ")";
       ctx.lineWidth = 0.6 + depth * 0.9;
       ctx.beginPath();
-      ctx.moveTo(a.x, a.y);
-      ctx.lineTo(b.x, b.y);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(ex, ey);
       ctx.stroke();
     }
 
@@ -461,28 +480,35 @@
 
     ctx.clearRect(0, 0, w, h);
     var k = mode === "hold" ? 1 : easeInOut(Math.min(1, since / MORPH));
-    var gate = mode === "morph" ? smooth01((k - STAR_GATE) / (1 - STAR_GATE)) : 1;
 
     if (mode === "morph" && current.birth) {
+      // Truncation moves everything on one clock. Stellation splits into
+      // draw, then emerge, then rise.
+      var staged = current.morphKind === "kis";
+      var rise = staged ? smooth01((k - KIS_STAR) / (1 - KIS_STAR)) : k;
+      var gate = staged ? smooth01((k - KIS_DRAW) / (KIS_STAR - KIS_DRAW)) : 1;
+      var grow = staged ? smooth01(k / KIS_DRAW) : 1;
+
       var lerped = [];
       for (var i = 0; i < current.verts.length; i++) {
         var a = current.birth[i], b = current.verts[i];
-        lerped.push([a[0] + (b[0] - a[0]) * k,
-                     a[1] + (b[1] - a[1]) * k,
-                     a[2] + (b[2] - a[2]) * k]);
+        lerped.push([a[0] + (b[0] - a[0]) * rise,
+                     a[1] + (b[1] - a[1]) * rise,
+                     a[2] + (b[2] - a[2]) * rise]);
       }
-      drawSolid(lerped, current.edges, current.color, ax, ay, 1, 1, current.fresh, gate);
+      drawSolid(lerped, current.edges, current.color, ax, ay, 1, 1,
+                staged ? current.fresh : null, gate, grow);
     } else if (mode === "bloom") {
       // Square-root crossfade. A plain linear pair dips to half brightness
       // on both solids at the midpoint, which read as a blank beat.
       if (previous) {
         drawSolid(previous.verts, previous.edges, previous.color,
-                  ax, ay, Math.sqrt(1 - k), 1 - k * 0.65, null, 1);
+                  ax, ay, Math.sqrt(1 - k), 1 - k * 0.65, null, 1, 1);
       }
       drawSolid(current.verts, current.edges, current.color,
-                ax, ay, Math.sqrt(k), 0.35 + k * 0.65, null, 1);
+                ax, ay, Math.sqrt(k), 0.35 + k * 0.65, null, 1, 1);
     } else {
-      drawSolid(current.verts, current.edges, current.color, ax, ay, 1, 1, null, 1);
+      drawSolid(current.verts, current.edges, current.color, ax, ay, 1, 1, null, 1, 1);
     }
 
     requestAnimationFrame(frame);
