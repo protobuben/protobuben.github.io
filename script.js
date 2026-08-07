@@ -286,6 +286,11 @@
   var KIS_DRAW = 0.45;   // edges have reached the face centre by here
   var KIS_STAR = 0.62;   // new star has fully emerged by here
 
+  // On a reseed the outgoing solid expands outward as it fades, while the
+  // incoming one still blooms up out of the core.
+  var BLOOM_OUT = 0.85;  // how far past full size the old shape swells
+  var BLOOM_IN = 0.65;   // how far below full size the new shape starts
+
   var seedIndex = 3;
   var current = SEEDS[seedIndex].make();
   current.color = SEEDS[seedIndex].color;
@@ -503,10 +508,10 @@
       // on both solids at the midpoint, which read as a blank beat.
       if (previous) {
         drawSolid(previous.verts, previous.edges, previous.color,
-                  ax, ay, Math.sqrt(1 - k), 1 - k * 0.65, null, 1, 1);
+                  ax, ay, Math.sqrt(1 - k), 1 + k * BLOOM_OUT, null, 1, 1);
       }
       drawSolid(current.verts, current.edges, current.color,
-                ax, ay, Math.sqrt(k), 0.35 + k * 0.65, null, 1, 1);
+                ax, ay, Math.sqrt(k), (1 - BLOOM_IN) + k * BLOOM_IN, null, 1, 1);
     } else {
       drawSolid(current.verts, current.edges, current.color, ax, ay, 1, 1, null, 1, 1);
     }
