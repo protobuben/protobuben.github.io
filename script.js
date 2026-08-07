@@ -1,9 +1,9 @@
 // -------------------------------------------------------
 // Conway polyhedron engine, rendered to 2D canvas. No libraries.
 //
-// Seeds are the five Platonic solids; operators are truncate (t),
-// kis/stellate (k) and dual (d), applied at random to build a recipe
-// chain, then reset back to a fresh seed. Same machine as the catch
+// Seeds are the five Platonic solids, each with its own colour; operators
+// are truncate (t), kis/stellate (k) and dual (d). Every seed runs exactly
+// three operators before the next seed blooms in. Same machine as the catch
 // generator, cut down to a wireframe.
 
 (function () {
@@ -168,9 +168,11 @@
   // -------------------------------------------------------
   // Operators
   //
-  // Each returns a polyhedron plus a `birth` array: where every vertex
-  // starts at morph time 0, so the transition is the real continuous
-  // family rather than a crossfade.
+  // Each returns a polyhedron plus two parallel arrays:
+  //   birth - where a vertex sits at morph time 0, so the transition is the
+  //           real continuous family rather than a crossfade
+  //   fresh - whether this vertex is created by the operator, so its star
+  //           can be held back until the edges have reached its position
 
   function dual(poly) {
     var verts = poly.faces.map(function (f) { return centroidOf(poly.verts, f); });
@@ -182,7 +184,9 @@
       if (fs.length < 3) continue;
       faces.push(sortAround(poly.verts[v], fs).map(function (o) { return o.key; }));
     }
-    return finish({ verts: verts, faces: faces });
+    var out = finish({ verts: verts, faces: faces });
+    out.color = poly.color;
+    return out;
   }
 
   // Apex over each face; every original vertex is carried through, so the
@@ -190,6 +194,7 @@
   function kis(poly, height) {
     var verts = poly.verts.slice();
     var birth = poly.verts.map(function (p) { return p.slice(); });
+    var fresh = poly.verts.map(function () { return false; });
     var faces = [];
 
     for (var i = 0; i < poly.faces.length; i++) {
@@ -198,12 +203,15 @@
       var ai = verts.length;
       verts.push([c[0] * height, c[1] * height, c[2] * height]);
       birth.push([c[0], c[1], c[2]]);
+      fresh.push(true);
       for (var j = 0; j < f.length; j++) {
         faces.push([f[j], f[(j + 1) % f.length], ai]);
       }
     }
     var out = finish({ verts: verts, faces: faces });
     out.birth = birth;
+    out.fresh = fresh;
+    out.color = poly.color;
     return out;
   }
 
@@ -249,20 +257,37 @@
 
     var out = finish({ verts: verts, faces: faces });
     out.birth = birth;
+    // Truncation replaces every vertex, and several new ones share a birth
+    // point, so releasing their stars early would stack sprites into a hot
+    // spot. They are all held back for the same reason the kis apexes are.
+    out.fresh = verts.map(function () { return true; });
+    out.color = poly.color;
     return out;
   }
 
   // -------------------------------------------------------
   // Sequencing
 
-  var SEEDS = [tetrahedron, cube, octahedron, icosahedron,
-               function () { return dual(icosahedron()); }];
+  // Element hooks, one colour per seed.
+  var SEEDS = [
+    { make: tetrahedron, color: [255, 154,  92] },   // fire
+    { make: cube,        color: [255, 198, 108] },   // earth
+    { make: octahedron,  color: [138, 226, 236] },   // air
+    { make: icosahedron, color: [124, 140, 255] },   // water
+    { make: function () { return dual(icosahedron()); },
+                         color: [196, 142, 255] }    // aether
+  ];
 
-  var MAX_VERTS = 220;   // complexity ceiling before forcing a reseed
+  var MODS = 3;          // operators applied per seed, then a new seed
+  var MAX_VERTS = 400;   // preferred complexity ceiling
   var HOLD = 5200;       // ms held on a finished shape
   var MORPH = 2300;      // ms of transition
+  var STAR_GATE = 0.72;  // fraction of a morph before new stars appear
 
-  var current = SEEDS[3]();
+  var seedIndex = 3;
+  var current = SEEDS[seedIndex].make();
+  current.color = SEEDS[seedIndex].color;
+
   var previous = null;
   var chain = 0;
   var mode = "hold";     // "hold" | "morph" | "bloom"
@@ -270,24 +295,35 @@
 
   function reseed() {
     previous = current;
-    var pick;
-    do { pick = SEEDS[Math.floor(Math.random() * SEEDS.length)](); }
-    while (pick.verts.length === current.verts.length && Math.random() < 0.7);
-    current = pick;
+    var i;
+    do { i = Math.floor(Math.random() * SEEDS.length); }
+    while (i === seedIndex && SEEDS.length > 1);
+    seedIndex = i;
+    current = SEEDS[i].make();
+    current.color = SEEDS[i].color;
     current.birth = null;
+    current.fresh = null;
     chain = 0;
     mode = "bloom";
   }
 
   function step() {
-    if (chain >= 3) return reseed();
+    if (chain >= MODS) return reseed();
 
-    var roll = Math.random();
-    var next = roll < 0.4 ? truncate(current, 1 / 3)
-             : roll < 0.8 ? kis(current, 1.45)
-             : dual(current);
+    // Build all three candidates and prefer one that stays under the
+    // ceiling, so the seed always gets its full run of operators instead
+    // of being cut short by a complexity trip.
+    var cands = [truncate(current, 1 / 3), kis(current, 1.45), dual(current)];
+    var fits = cands.filter(function (c) { return c.verts.length <= MAX_VERTS; });
 
-    if (next.verts.length > MAX_VERTS) return reseed();
+    var next;
+    if (fits.length) {
+      next = fits[Math.floor(Math.random() * fits.length)];
+    } else {
+      next = cands.reduce(function (a, b) {
+        return a.verts.length <= b.verts.length ? a : b;
+      });
+    }
 
     previous = current;
     current = next;
@@ -311,7 +347,36 @@
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
 
-  function drawSolid(verts, edges, ax, ay, alphaMul, scaleMul) {
+  function smooth01(x) {
+    x = x < 0 ? 0 : x > 1 ? 1 : x;
+    return x * x * (3 - 2 * x);
+  }
+
+  // Glow is drawn from a pre-rendered sprite rather than a per-vertex
+  // radial gradient, which is what makes rendering every star affordable
+  // once a chain gets dense.
+  var sprites = {};
+  function glowSprite(color) {
+    var key = color[0] + "_" + color[1] + "_" + color[2];
+    if (sprites[key]) return sprites[key];
+
+    var size = 64, mid = size / 2;
+    var off = document.createElement("canvas");
+    off.width = size; off.height = size;
+    var g = off.getContext("2d");
+    var grd = g.createRadialGradient(mid, mid, 0, mid, mid, mid);
+    var rgb = color[0] + ", " + color[1] + ", " + color[2];
+    grd.addColorStop(0, "rgba(" + rgb + ", 0.85)");
+    grd.addColorStop(0.3, "rgba(" + rgb + ", 0.28)");
+    grd.addColorStop(1, "rgba(" + rgb + ", 0)");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, size, size);
+
+    sprites[key] = off;
+    return off;
+  }
+
+  function drawSolid(verts, edges, color, ax, ay, alphaMul, scaleMul, fresh, gate) {
     var maxR = 0;
     for (var i = 0; i < verts.length; i++) {
       var v = verts[i];
@@ -323,6 +388,7 @@
     var fit = (Math.min(w, h) * 0.30 / maxR) * scaleMul;
     var cosY = Math.cos(ay), sinY = Math.sin(ay);
     var cosX = Math.cos(ax), sinX = Math.sin(ax);
+    var rgb = color[0] + ", " + color[1] + ", " + color[2];
 
     var pts = [];
     for (var p = 0; p < verts.length; p++) {
@@ -346,7 +412,7 @@
       var depth = (a.depth + b.depth) * 0.5;
       var alpha = Math.max(0, (depth - 0.72) * 1.5) * alphaMul;
       if (alpha <= 0.004) continue;
-      ctx.strokeStyle = "rgba(124, 140, 255, " + (alpha * 0.5).toFixed(3) + ")";
+      ctx.strokeStyle = "rgba(" + rgb + ", " + (alpha * 0.5).toFixed(3) + ")";
       ctx.lineWidth = 0.6 + depth * 0.9;
       ctx.beginPath();
       ctx.moveTo(a.x, a.y);
@@ -354,27 +420,24 @@
       ctx.stroke();
     }
 
-    // Vertex stars are the expensive part, so they drop away once a chain
-    // gets dense enough that they would read as noise anyway.
-    if (verts.length > 64) return;
-
+    var sprite = glowSprite(color);
     for (var s = 0; s < pts.length; s++) {
       var pt = pts[s];
-      var g = Math.max(0, (pt.depth - 0.7) * 1.6) * alphaMul;
-      if (g <= 0.004) continue;
+      var star = alphaMul;
+      if (fresh && fresh[s]) star *= gate;
+      var g2 = Math.max(0, (pt.depth - 0.7) * 1.6) * star;
+      if (g2 <= 0.004) continue;
+
       var rad = 1.4 + pt.depth * 2.2;
+      var span = rad * 6;
 
-      var glow = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, rad * 5);
-      glow.addColorStop(0, "rgba(180, 195, 255, " + (g * 0.75).toFixed(3) + ")");
-      glow.addColorStop(1, "rgba(124, 140, 255, 0)");
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, rad * 5, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.globalAlpha = Math.min(1, g2);
+      ctx.drawImage(sprite, pt.x - span / 2, pt.y - span / 2, span, span);
+      ctx.globalAlpha = 1;
 
-      ctx.fillStyle = "rgba(232, 238, 255, " + g.toFixed(3) + ")";
+      ctx.fillStyle = "rgba(240, 244, 255, " + Math.min(1, g2).toFixed(3) + ")";
       ctx.beginPath();
-      ctx.arc(pt.x, pt.y, rad, 0, Math.PI * 2);
+      ctx.arc(pt.x, pt.y, rad * 0.55, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -385,16 +448,20 @@
     var ay = t * 0.00023;
     var since = t - markAt;
 
+    // `since` must be re-zeroed alongside markAt. Reading the stale value
+    // here made the first frame of every transition render at k=1, which
+    // flashed the finished shape before it animated.
     if (mode === "hold") {
-      if (since > HOLD) { markAt = t; step(); }
+      if (since > HOLD) { markAt = t; since = 0; step(); }
     } else if (since > MORPH) {
-      markAt = t;
+      markAt = t; since = 0;
       mode = "hold";
       previous = null;
     }
 
     ctx.clearRect(0, 0, w, h);
     var k = mode === "hold" ? 1 : easeInOut(Math.min(1, since / MORPH));
+    var gate = mode === "morph" ? smooth01((k - STAR_GATE) / (1 - STAR_GATE)) : 1;
 
     if (mode === "morph" && current.birth) {
       var lerped = [];
@@ -404,15 +471,18 @@
                      a[1] + (b[1] - a[1]) * k,
                      a[2] + (b[2] - a[2]) * k]);
       }
-      drawSolid(lerped, current.edges, ax, ay, 1, 1);
+      drawSolid(lerped, current.edges, current.color, ax, ay, 1, 1, current.fresh, gate);
     } else if (mode === "bloom") {
-      // Old collapses inward, new blooms out of the core.
+      // Square-root crossfade. A plain linear pair dips to half brightness
+      // on both solids at the midpoint, which read as a blank beat.
       if (previous) {
-        drawSolid(previous.verts, previous.edges, ax, ay, 1 - k, 1 - k * 0.65);
+        drawSolid(previous.verts, previous.edges, previous.color,
+                  ax, ay, Math.sqrt(1 - k), 1 - k * 0.65, null, 1);
       }
-      drawSolid(current.verts, current.edges, ax, ay, k, 0.35 + k * 0.65);
+      drawSolid(current.verts, current.edges, current.color,
+                ax, ay, Math.sqrt(k), 0.35 + k * 0.65, null, 1);
     } else {
-      drawSolid(current.verts, current.edges, ax, ay, 1, 1);
+      drawSolid(current.verts, current.edges, current.color, ax, ay, 1, 1, null, 1);
     }
 
     requestAnimationFrame(frame);
